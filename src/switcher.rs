@@ -66,8 +66,6 @@ impl Switcher {
             return Some(state.broadcasting_software.connected_notifier());
         }
 
-        // TODO: When changing only_switch_when_streaming also do a
-        // notify so that it won't wait anymore
         if state.config.switcher.only_switch_when_streaming
             && !state.broadcasting_software.is_streaming
         {
@@ -101,10 +99,19 @@ impl Switcher {
         let retry_attempts = &switcher_config.retry_attempts;
         let instant_recover = &switcher_config.instantly_switch_on_recover;
 
+        // Prüfe, ob ein Streamserver online ist
         let (mut server, mut current_switch_type) =
             Self::get_online_stream_server(stream_servers, triggers).await;
 
-        // When stream comes back from offline, instantly switch.
+        // Wenn kein Server online, aber OBS streamt -> BRB
+        if server.is_none()
+            && state.broadcasting_software.is_streaming
+            && current_switch_type == SwitchType::Offline
+        {
+            current_switch_type = SwitchType::Brb;
+        }
+
+        // Wenn Stream zurückkommt, sofort umschalten
         let mut force_switch = *instant_recover
             && *prev_switch_type == SwitchType::Offline
             && current_switch_type != SwitchType::Offline;
@@ -136,7 +143,7 @@ impl Switcher {
             return Ok(());
         }
 
-        // Avoid triggering the offline timeout when starting the stream.
+        // Offline timeout verhindern, wenn Stream gerade startet
         if !state.config.switcher.only_switch_when_streaming
             && state.broadcasting_software.last_stream_started_at.elapsed()
                 <= Duration::from_secs((*retry_attempts + 5).into())
@@ -147,7 +154,7 @@ impl Switcher {
         *same_type = 0;
 
         if current_switch_type == SwitchType::Offline {
-            // TODO: Refactor the timeout code
+            // Timeout-Logik
             if let Some(min) = &state.config.optional_options.offline_timeout {
                 if state.broadcasting_software.is_streaming
                     && same_type_seconds.elapsed() >= Duration::from_secs((min * 60).into())
@@ -201,7 +208,6 @@ impl Switcher {
         let scene = if let SwitchType::Previous = &current_switch_type {
             &state.broadcasting_software.prev_scene
         } else {
-            // Should be safe since previous is handled
             scenes.type_to_scene(&current_switch_type).unwrap()
         }
         .to_owned();
@@ -213,7 +219,6 @@ impl Switcher {
         {
             let mut state = self.state.write().await;
 
-            // Set the previous scene when switch_type is normal or low
             if let SwitchType::Normal | SwitchType::Low = current_switch_type {
                 scene.clone_into(&mut state.broadcasting_software.prev_scene);
             };
@@ -230,7 +235,6 @@ impl Switcher {
         Ok(())
     }
 
-    /// Gets the first online stream server with current status
     async fn get_online_stream_server<'a>(
         stream_servers: &'a [stream_servers::StreamServer],
         triggers: &'a Triggers,
@@ -293,7 +297,6 @@ impl Switcher {
             return Ok(());
         }
 
-        // Ignore the error.. it should work at some point
         if let Err(error) = state
             .broadcasting_software
             .connection
@@ -364,19 +367,22 @@ pub struct SwitchingScenes {
     pub normal: String,
     pub low: String,
     pub offline: String,
+    pub brb: Option<String>, // 👈 Neu
 }
 
 impl SwitchingScenes {
-    pub fn new<N, L, O>(normal: N, low: L, offline: O) -> Self
+    pub fn new<N, L, O, B>(normal: N, low: L, offline: O, brb: Option<B>) -> Self
     where
         N: Into<String>,
         L: Into<String>,
         O: Into<String>,
+        B: Into<String>,
     {
         SwitchingScenes {
             normal: normal.into(),
             low: low.into(),
             offline: offline.into(),
+            brb: brb.map(|b| b.into()),
         }
     }
 
@@ -385,6 +391,7 @@ impl SwitchingScenes {
             SwitchType::Normal => &self.normal,
             SwitchType::Low => &self.low,
             SwitchType::Offline => &self.offline,
+            SwitchType::Brb => self.brb.as_deref().unwrap_or(&self.offline),
             _ => return Err(error::Error::SwitchTypeNotSupported),
         })
     }
@@ -401,16 +408,9 @@ pub enum TriggerType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Triggers {
-    /// Trigger to switch to the low scene
     pub low: Option<u32>,
-
-    /// Trigger to switch to the low scene when RTT is high
     pub rtt: Option<u32>,
-
-    /// Trigger to switch to the offline scene
     pub offline: Option<u32>,
-
-    /// Trigger to switch to the offline scene when RTT is high
     pub rtt_offline: Option<u32>,
 }
 
@@ -437,4 +437,5 @@ pub enum SwitchType {
     Low,
     Previous,
     Offline,
+    Brb, // added brb option when no connection
 }
