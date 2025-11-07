@@ -32,6 +32,7 @@ TWITCH_APP_CLIENT_SECRET=YOUR_APP_CLIENT_SECRET_HERE
 ### [ <b> CHECK OUT THE NEW GUIDE FOR APP TOKENS IN .ENV FILE HERE 🔗 </b> ](https://github.com/NoOneNook/nginx-obs-automatic-low-bitrate-switching/blob/160f03b410bb3139d0b2554d7114d514ca9bf8f2/ENV%20FILE%20EDIT.md)
 
 __**Disable commands**__
+
 Also there is a new command for the config.json which you can use to disable specific commands e.b.
 
 ```
