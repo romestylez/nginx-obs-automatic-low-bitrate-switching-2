@@ -19,7 +19,7 @@ A simple executable for all Operating Systems (Windows, Mac & Linux) to automati
 ---------------------------------------------------------------------------------------------------------------------------------<br>
 
 ### IMPORTANT - THERE IS A NEW UPDATE TO THE .ENV FILE! ⚠️
-<!-- # There is a new update to the .env file!! -->
+<!-- # There is a new update to the .env file!!! -->
   
 ___**The .env file has been updated with two new lines.**___
 <br>
