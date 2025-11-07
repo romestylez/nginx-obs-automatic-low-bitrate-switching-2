@@ -90,10 +90,11 @@ impl Default for Switcher {
             triggers: switcher::Triggers::default(),
             stream_servers: Vec::new(),
             switching_scenes: switcher::SwitchingScenes {
-                normal: "live".to_string(),
-                low: "low".to_string(),
-                offline: "offline".to_string(),
-            },
+    normal: "live".to_string(),
+    low: "low".to_string(),
+    offline: "offline".to_string(),
+    brb: None, // ✅ neu hinzugefügt für BRB-Unterstützung
+},
             retry_attempts: MAX_LOW_RETRY,
         }
     }
@@ -407,10 +408,11 @@ impl From<ConfigOld> for Config {
                     rtt_offline: None,
                 },
                 switching_scenes: switcher::SwitchingScenes {
-                    normal: o.obs.normal_scene,
-                    low: o.obs.low_bitrate_scene,
-                    offline: o.obs.offline_scene,
-                },
+    normal: o.obs.normal_scene,
+    low: o.obs.low_bitrate_scene,
+    offline: o.obs.offline_scene,
+    brb: None, // ✅ neu hinzugefügt
+},
                 ..Default::default()
             },
             software,

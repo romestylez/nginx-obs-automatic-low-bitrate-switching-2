@@ -177,13 +177,14 @@ impl ChatHandler {
         let mut msg = t!("sceneSwitch.switch", locale = lang, scene = &ss.scene);
 
         use switcher::SwitchType::*;
-        match ss.switch_type {
-            Normal | Low => {
-                let bitrate = bitrate_msg(&user, lang).await;
-                let _ = write!(msg, " | {}", bitrate);
-            }
-            Previous | Offline => {}
-        }
+match ss.switch_type {
+    Normal | Low | Brb => {
+        let bitrate = bitrate_msg(&user, lang).await;
+        let _ = write!(msg, " | {}", bitrate);
+    }
+    Previous | Offline => {}
+}
+
 
         sender.send_message(ss.channel, msg).await;
 
