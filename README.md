@@ -89,7 +89,7 @@ This version improves `!start`, `!stop`, and manual BRB switching (e.g. `!go brb
     }
   }
 }
-
+```
 
 ---
 # Try out the new [NOALBS Cloud Alpha](https://noalbs.com/signin) (Twitch Only) today!
