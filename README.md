@@ -18,7 +18,8 @@ A simple executable for all Operating Systems (Windows, Mac & Linux) to automati
 <br>
 ---------------------------------------------------------------------------------------------------------------------------------<br>
 
-### IMPORTANT - THERE IS A NEW UPDATE TO THE .ENV FILE! ⚠️
+### 🚨 IMPORTANT - THIS VERSION HAS Breaking changes 🚨
+
 <!-- # There is a new update to the .env file!!! -->
   
 ___**The .env file has been updated with two new lines.**___
@@ -39,6 +40,32 @@ Also there is a new command for the config.json which you can use to disable spe
 ```
 "disabledCommands": ["bitrate"],
 ```
+
+---
+
+### 🧩 Manual BRB & Stream Control Enhancements
+
+This version improves `!start`, `!stop`, and manual BRB switching (e.g. `!go brb`, `!go afk`) with a **lock mechanism** to prevent unwanted auto-switching.
+
+#### 🔹 `!start`
+- Always switches to the configured **intro/starting scene** from **`config.json` "starting"** when the stream is **not running**.
+- If the stream is **already live**, `!start` does nothing and logs that the stream is already active.
+- Enables a **temporary scene lock** during the intro so automatic switching cannot override it.
+
+#### 🔹 `!stop`
+- Stops the stream and switches to the **offline scene** from **`config.json` "offline"**.
+- If the stream is already stopped, the command is safely ignored.
+
+#### 🔹 Manual BRB (`!go brb`, `!go afk`, etc.)
+- Switching manually to the BRB scene (defined in **`config.json` "brb"**) activates a **manual BRB lock** that pauses automatic switching.
+- While locked, bitrate recovery will **not** switch back to LIVE automatically.
+- The lock is automatically released when manually changing to another scene.
+
+#### ⚙️ Summary
+- Intentional BRB stays BRB until you manually change scenes.  
+- Automatic recovery to LIVE only happens after an *automatic* BRB, not a manual one.  
+- `!start` and `!stop` are idempotent — safe to run multiple times without side effects.
+
 
 ---
 # Try out the new [NOALBS Cloud Alpha](https://noalbs.com/signin) (Twitch Only) today!
