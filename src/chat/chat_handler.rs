@@ -695,6 +695,17 @@ impl DispatchCommand {
 
 
     async fn start(&self) {
+    // 🔹 Wenn bereits gestreamt wird, nichts tun
+    {
+        let state = self.user.state.read().await;
+        if state.broadcasting_software.is_streaming {
+            tracing::info!("Stream is already running – ignoring duplicate !start command");
+            drop(state);
+            self.send("Stream läuft bereits.".to_string()).await;
+            return;
+        }
+    }
+
     let (twitch_transcoding, record, starting_scene_opt) = {
         let state = self.user.state.read().await;
         let options = &state.config.optional_options;
@@ -704,6 +715,7 @@ impl DispatchCommand {
             state.config.optional_scenes.starting.clone(),
         )
     };
+
 
     // 🔹 Wenn eine Starting-Szene definiert ist → immer dorthin schalten
     if let Some(intro_scene) = &starting_scene_opt {
@@ -852,6 +864,17 @@ impl DispatchCommand {
     }
 
     async fn stop(&self, raid: Option<chat::RaidedInfo>) {
+		 // 🔹 Streamstatus prüfen – doppelte Stop-Kommandos verhindern
+    {
+        let state = self.user.state.read().await;
+        if !state.broadcasting_software.is_streaming {
+            tracing::info!("Stream is already stopped – ignoring duplicate !stop command");
+            drop(state);
+            self.send("Stream ist bereits gestoppt.".to_string()).await;
+            return;
+        }
+    }
+		
         let record = {
             self.user
                 .state
