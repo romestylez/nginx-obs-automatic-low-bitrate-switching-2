@@ -93,32 +93,44 @@ impl Switcher {
     ) -> Result<(), error::Error> {
         let state = self.state.read().await;
 
-        // 🧠 1️⃣ BRB-AutoLock prüfen
-if state.config.switcher.manual_brb {
-    let brb_scene_name = state
-        .config
-        .switcher
-        .switching_scenes
-        .brb
-        .as_deref()
-        .unwrap_or("BRB");
-    if state.broadcasting_software.current_scene == brb_scene_name {
-        debug!(
-            "Manual BRB lock active (scene '{}') – skipping automatic switching",
-            brb_scene_name
-        );
-        return Ok(());
-    } else {
-        debug!("Manual BRB lock released – current scene != BRB scene");
-
-        // ❌ drop(state); entfernen!
-        // 🔁 Stattdessen gleich neuen write-lock holen:
-        {
+    // 🧠 1️⃣ BRB-AutoLock prüfen
+    if state.config.switcher.manual_brb {
+        let brb_scene_name = state
+            .config
+            .switcher
+            .switching_scenes
+            .brb
+            .as_deref()
+            .unwrap_or("BRB");
+        if state.broadcasting_software.current_scene == brb_scene_name {
+            debug!(
+                "Manual BRB lock active (scene '{}') – skipping automatic switching",
+                brb_scene_name
+            );
+            return Ok(());
+        } else {
+            debug!("Manual BRB lock released – current scene != BRB scene");
             let mut state_write = self.state.write().await;
             state_write.config.switcher.manual_brb = false;
         }
     }
-}
+
+    // 🧠 2️⃣ Intro-Lock prüfen
+    let intro_scene_name = state
+        .config
+        .optional_scenes
+        .starting
+        .as_deref()
+        .unwrap_or("INTRO");
+
+    if state.broadcasting_software.current_scene == intro_scene_name {
+        debug!(
+            "Intro scene '{}' active – skipping automatic switching until manually changed",
+            intro_scene_name
+        );
+        return Ok(());
+    }
+
 
 
         let switcher_config = &state.config.switcher;

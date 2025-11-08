@@ -695,48 +695,46 @@ impl DispatchCommand {
 
 
     async fn start(&self) {
-    let (twitch_transcoding, record, starting) = {
+    let (twitch_transcoding, record, starting_scene_opt) = {
         let state = self.user.state.read().await;
         let options = &state.config.optional_options;
         (
             options.twitch_transcoding_check,
             options.record_while_streaming,
-            options.switch_to_starting_scene_on_stream_start,
+            state.config.optional_scenes.starting.clone(),
         )
     };
 
-    // 1️⃣ Falls gerade LIVE aktiv ist, vor dem Start auf INTRO umschalten
-    if starting {
-        let state = self.user.state.read().await;
-        let current_scene = state.broadcasting_software.current_scene.clone();
-let intro_scene = state
-    .config
-    .optional_scenes
-    .starting
-    .as_deref()
-    .unwrap_or("INTRO")
-    .to_string();
-drop(state);
+    // 🔹 Wenn eine Starting-Szene definiert ist → immer dorthin schalten
+    if let Some(intro_scene) = &starting_scene_opt {
+        tracing::info!("Switching to intro scene: {}", intro_scene);
+        let _ = self.switch(Some(intro_scene)).await;
 
-if current_scene == "LIVE" {
-            let _ = self.switch(Some(&intro_scene)).await;
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        // Intro-Lock aktivieren: Kein automatischer Wechsel erlaubt
+        {
+            let mut wstate = self.user.state.write().await;
+            wstate.config.switcher.manual_brb = true;
+            tracing::info!("Intro lock enabled (manual_brb=true)");
         }
+
+        // kurze Pause, damit OBS sauber umschaltet
+        tokio::time::sleep(tokio::time::Duration::from_millis(700)).await;
     }
 
-    // 2️⃣ Stream starten
-    let success =
-        if self.chat_message.platform == chat::ChatPlatform::Twitch && twitch_transcoding {
-            self.start_twitch_transcoding().await
-        } else {
-            self.start_normal().await
-        };
+    // 🔹 Stream starten
+    let success = if self.chat_message.platform == chat::ChatPlatform::Twitch && twitch_transcoding
+    {
+        self.start_twitch_transcoding().await
+    } else {
+        self.start_normal().await
+    };
 
-    // 3️⃣ Falls aktiviert, Aufnahme starten
+    // 🔹 Aufnahme starten, falls aktiviert
     if success && record {
         self.record().await;
     }
 }
+
 
     async fn start_bsc(&self) -> Result<(), error::Error> {
         let state = self.user.state.read().await;
