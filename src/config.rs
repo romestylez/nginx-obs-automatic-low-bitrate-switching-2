@@ -47,6 +47,8 @@ pub struct Switcher {
     /// This will be used to make sure the stream is actually in a low / offline
     /// bitrate state
     pub retry_attempts: u8,
+	
+	pub manual_brb: bool, // 👈 neu für manuellen BRB-Lock
 
     /// Triggers to switch to the low or offline scenes
     pub triggers: switcher::Triggers,
@@ -96,6 +98,7 @@ impl Default for Switcher {
     brb: None, // ✅ neu hinzugefügt für BRB-Unterstützung
 },
             retry_attempts: MAX_LOW_RETRY,
+			manual_brb: false, // ✅ hier neu
         }
     }
 }

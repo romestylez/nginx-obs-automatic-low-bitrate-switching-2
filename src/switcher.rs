@@ -93,6 +93,34 @@ impl Switcher {
     ) -> Result<(), error::Error> {
         let state = self.state.read().await;
 
+        // 🧠 1️⃣ BRB-AutoLock prüfen
+if state.config.switcher.manual_brb {
+    let brb_scene_name = state
+        .config
+        .switcher
+        .switching_scenes
+        .brb
+        .as_deref()
+        .unwrap_or("BRB");
+    if state.broadcasting_software.current_scene == brb_scene_name {
+        debug!(
+            "Manual BRB lock active (scene '{}') – skipping automatic switching",
+            brb_scene_name
+        );
+        return Ok(());
+    } else {
+        debug!("Manual BRB lock released – current scene != BRB scene");
+
+        // ❌ drop(state); entfernen!
+        // 🔁 Stattdessen gleich neuen write-lock holen:
+        {
+            let mut state_write = self.state.write().await;
+            state_write.config.switcher.manual_brb = false;
+        }
+    }
+}
+
+
         let switcher_config = &state.config.switcher;
         let triggers = &switcher_config.triggers;
         let stream_servers = &switcher_config.stream_servers;
@@ -109,12 +137,15 @@ impl Switcher {
             && current_switch_type == SwitchType::Offline
         {
             current_switch_type = SwitchType::Brb;
+        } else if *prev_switch_type == SwitchType::Brb && server.is_some() {
+            debug!("Recovered from BRB, switching back to normal detection");
+            current_switch_type = SwitchType::Normal;
         }
 
-        // Wenn Stream zurückkommt, sofort umschalten
+        // Wenn Stream zurückkommt (auch aus BRB), sofort umschalten
         let mut force_switch = *instant_recover
-            && *prev_switch_type == SwitchType::Offline
-            && current_switch_type != SwitchType::Offline;
+            && matches!(*prev_switch_type, SwitchType::Offline | SwitchType::Brb)
+            && !matches!(current_switch_type, SwitchType::Offline | SwitchType::Brb);
 
         if prev_switch_type == &current_switch_type {
             *same_type += 1;
@@ -309,7 +340,7 @@ impl Switcher {
             return Ok(());
         }
 
-        info!("Scene switched to [{:?}] {}", switch_type, switch_scene);
+        info!("Scene switched to [{}] {}", format!("{:?}", switch_type).to_uppercase(), switch_scene);
 
         if state.broadcasting_software.is_streaming
             && state.config.switcher.auto_switch_notification

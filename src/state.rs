@@ -21,12 +21,18 @@ impl State {
         all_scenes.insert(scenes.low.to_owned());
         all_scenes.insert(scenes.normal.to_owned());
         all_scenes.insert(scenes.offline.to_owned());
+        if let Some(brb) = &scenes.brb {
+            all_scenes.insert(brb.to_owned());
+        }
 
         for servers in &self.config.switcher.stream_servers {
             if let Some(scenes) = &servers.override_scenes {
                 all_scenes.insert(scenes.low.to_owned());
                 all_scenes.insert(scenes.normal.to_owned());
                 all_scenes.insert(scenes.offline.to_owned());
+                if let Some(brb) = &scenes.brb {
+                    all_scenes.insert(brb.to_owned());
+                }
             }
 
             if let Some(depends_on) = &servers.depends_on {
@@ -34,6 +40,9 @@ impl State {
                 all_scenes.insert(scenes.low.to_owned());
                 all_scenes.insert(scenes.normal.to_owned());
                 all_scenes.insert(scenes.offline.to_owned());
+                if let Some(brb) = &scenes.brb {
+                    all_scenes.insert(brb.to_owned());
+                }
             }
         }
 

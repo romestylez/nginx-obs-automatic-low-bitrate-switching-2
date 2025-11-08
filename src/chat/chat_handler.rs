@@ -657,51 +657,86 @@ impl DispatchCommand {
 
     // TODO: more than one word?
     async fn switch(&self, name: Option<&str>) {
-        let name = match name {
-            Some(name) => name,
-            None => {
-                self.send(t!("switch.noParams", locale = &self.lang)).await;
-                return;
-            }
-        };
+    let name = match name {
+        Some(name) => name,
+        None => {
+            self.send(t!("switch.noParams", locale = &self.lang)).await;
+            return;
+        }
+    };
 
-        let msg = match self.switch_scene(name).await {
-            Ok(scene) => t!("switch.success", locale = &self.lang, scene = &scene),
-            Err(e) => {
-                error!("{}", e);
-                t!("switch.error", locale = &self.lang, scene = name)
-            }
-        };
+    // 🔹 NEU: Prüfen ob Zielszene die konfigurierte BRB-Szene ist
+    {
+        let state_read = self.user.state.read().await;
+        let is_brb = is_brb_scene_name(&state_read.config, name);
+        drop(state_read); // read-lock freigeben, bevor write kommt
 
-        self.send(msg).await;
+        let mut state_write = self.user.state.write().await;
+        if is_brb {
+            state_write.config.switcher.manual_brb = true;
+			tracing::info!("Manual BRB lock enabled for scene '{}'", name.to_uppercase());
+        } else {
+            // optional: Lock zurücksetzen, wenn man auf eine andere Szene manuell wechselt
+            state_write.config.switcher.manual_brb = false;
+        }
     }
+
+    // 🔹 Szene wirklich wechseln
+    let msg = match self.switch_scene(name).await {
+        Ok(scene) => t!("switch.success", locale = &self.lang, scene = &scene),
+        Err(e) => {
+            error!("{}", e);
+            t!("switch.error", locale = &self.lang, scene = name)
+        }
+    };
+
+    self.send(msg).await;
+}
+
 
     async fn start(&self) {
-        let (twitch_transcoding, record, starting) = {
-            let state = self.user.state.read().await;
-            let options = &state.config.optional_options;
-            (
-                options.twitch_transcoding_check,
-                options.record_while_streaming,
-                options.switch_to_starting_scene_on_stream_start,
-            )
-        };
+    let (twitch_transcoding, record, starting) = {
+        let state = self.user.state.read().await;
+        let options = &state.config.optional_options;
+        (
+            options.twitch_transcoding_check,
+            options.record_while_streaming,
+            options.switch_to_starting_scene_on_stream_start,
+        )
+    };
 
-        let success =
-            if self.chat_message.platform == chat::ChatPlatform::Twitch && twitch_transcoding {
-                self.start_twitch_transcoding().await
-            } else {
-                self.start_normal().await
-            };
+    // 1️⃣ Falls gerade LIVE aktiv ist, vor dem Start auf INTRO umschalten
+    if starting {
+        let state = self.user.state.read().await;
+        let current_scene = state.broadcasting_software.current_scene.clone();
+let intro_scene = state
+    .config
+    .optional_scenes
+    .starting
+    .as_deref()
+    .unwrap_or("INTRO")
+    .to_string();
+drop(state);
 
-        if success && starting {
-            self.switch_optional_scene(OptionalScene::Starting).await;
-        }
-
-        if success && record {
-            self.record().await;
+if current_scene == "LIVE" {
+            let _ = self.switch(Some(&intro_scene)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         }
     }
+
+    // 2️⃣ Stream starten
+    let success =
+        if self.chat_message.platform == chat::ChatPlatform::Twitch && twitch_transcoding {
+            self.start_twitch_transcoding().await
+        } else {
+            self.start_normal().await
+        };
+
+    // 3️⃣ Falls aktiviert, Aufnahme starten
+    if success && record {
+        self.record().await;
+    }
+}
 
     async fn start_bsc(&self) -> Result<(), error::Error> {
         let state = self.user.state.read().await;
@@ -830,6 +865,15 @@ impl DispatchCommand {
         };
 
         let stop = self.stop_bsc().await;
+		
+		// Nach dem Stoppen auf die "Offline"-Szene wechseln
+{
+    let state = self.user.state.read().await;
+    let offline_scene = state.config.switcher.switching_scenes.offline.clone();
+drop(state); // read-lock freigeben, bevor wir schalten
+let _ = self.switch(Some(&offline_scene)).await;
+
+}
 
         let success_msg = if let Some(info) = raid {
             let url = match info.platform {
@@ -1445,6 +1489,40 @@ impl DispatchCommand {
     }
 }
 
+// 🔍 Hilfsfunktion: prüft, ob Szene ein BRB-Name ist (global, override, backup)
+fn is_brb_scene_name(cfg: &config::Config, name: &str) -> bool {
+    let nm = name.trim();
+
+    // global BRB
+    if let Some(brb) = &cfg.switcher.switching_scenes.brb {
+        if nm.eq_ignore_ascii_case(brb) {
+            return true;
+        }
+    }
+
+    // BRB in overrideScenes je Streamserver
+    for server in &cfg.switcher.stream_servers {
+        if let Some(ov) = &server.override_scenes {
+            if let Some(brb) = &ov.brb {
+                if nm.eq_ignore_ascii_case(brb) {
+                    return true;
+                }
+            }
+        }
+
+        // BRB in dependsOn.backup_scenes
+        if let Some(dep) = &server.depends_on {
+            if let Some(brb) = &dep.backup_scenes.brb {
+                if nm.eq_ignore_ascii_case(brb) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
+}
+
 fn condition_to_text(condition: bool, lang: &str) -> String {
     if condition {
         t!("handleCommands.enabled", locale = lang)
@@ -1452,6 +1530,7 @@ fn condition_to_text(condition: bool, lang: &str) -> String {
         t!("handleCommands.disabled", locale = lang)
     }
 }
+
 
 fn enabled_to_bool(enabled: &str) -> Result<bool, error::Error> {
     if enabled.to_lowercase() == "on" {
