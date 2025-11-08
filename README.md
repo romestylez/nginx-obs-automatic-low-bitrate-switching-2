@@ -66,6 +66,25 @@ This version improves `!start`, `!stop`, and manual BRB switching (e.g. `!go brb
 - Automatic recovery to LIVE only happens after an *automatic* BRB, not a manual one.  
 - `!start` and `!stop` are idempotent — safe to run multiple times without side effects.
 
+Here is a short example for the new parameters in the config.json
+
+`  "switcher": {
+    "bitrateSwitcherEnabled": true,
+    "onlySwitchWhenStreaming": true,
+    "instantlySwitchOnRecover": false,
+    "autoSwitchNotification": true,
+    "retryAttempts": 5,
+    "triggers": {
+      "rtt": 3500,
+      "offline": 50,
+      "rttOffline": 3500
+    },
+    "switchingScenes": {
+      "normal": "LIVE",
+      "low": "LOW",
+	  "brb": "BRB",
+      "offline": "OFFLINE"
+    },`
 
 ---
 # Try out the new [NOALBS Cloud Alpha](https://noalbs.com/signin) (Twitch Only) today!
